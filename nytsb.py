@@ -12,13 +12,29 @@ import urllib.request
 import curses.ascii
 
 from getch import getch
+from rich import padding
 from rich.console import Console, RenderGroup
+from rich import box
+from rich.style import Style
 from rich.text import Text
 from rich.panel import Panel
 from rich.live import Live
 from rich.columns import Columns
 from rich.padding import Padding
 from rich.table import Table
+
+RANKS = (
+    ("Beginner", 0),
+    ("Good Start", 2),
+    ("Moving Up", 5),
+    ("Good", 8),
+    ("Solid", 15),
+    ("Nice", 25),
+    ("Great", 40),
+    ("Amazing", 50),
+    ("Genius", 70),
+    ("Queen Bee", 100),
+)
 
 
 class SpellingBee:
@@ -47,26 +63,12 @@ class SpellingBee:
     def shuffle_letters(self):
         random.shuffle(self.valid)
 
-    @property
-    def rank(self) -> str:
-
-        ranks = [
-            ["Beginner", 0],
-            ["Good Start", 2],
-            ["Moving Up", 5],
-            ["Good", 8],
-            ["Solid", 15],
-            ["Nice", 25],
-            ["Great", 40],
-            ["Amazing", 50],
-            ["Genius", 70],
-            ["Queen Bee", 100],
-        ]
-
+    def rank(self, score: int) -> Tuple[str, int]:
+        """Returns a tuple of the matching rank name/percentage for the current score"""
         r = max(
-            [l for l in ranks if self.score / self.max_score * 100 >= l[1]],
+            [l for l in RANKS if score / self.max_score * 100 >= l[1]],
             key=lambda x: x[1],
-        )[0]
+        )
 
         return r
 
@@ -234,7 +236,7 @@ def main():
 
     guesses = Text()
     for g in valid_guesses:
-        guesses.append(g)
+        guesses.append(g + "\n")
     guesses_panel = Panel(guesses, title="", width=(console.width - 27))
 
     message = Text(justify="center", style="italic")
@@ -247,13 +249,36 @@ def main():
 
     status_row.add_column(justify="right")
     status_row.add_row(Padding(message, (2, 0)), score_panel)
+    rank_name, rank_value = bee.rank(int(score.plain))
+
+    rank_table = Table(
+        box=box.SIMPLE,
+        padding=0,
+        collapse_padding=True,
+        pad_edge=False,
+        expand=True,
+    )
+    for rank in RANKS:
+        my_rank = rank_name == rank[0]
+        style = Style(dim=not my_rank)
+        rank_table.add_column(
+            rank[0],
+            min_width=min(2, int(rank[1] / 100 * console.width)),
+            justify="right",
+            header_style=style,
+        )
+
     game_panel = RenderGroup(
         status_row,
         Columns([hive_panel, guesses_panel]),
+        rank_table,
     )
 
     with Live(auto_refresh=False) as live:
+
+        # Paint the initial game board
         live.update(game_panel, refresh=True)
+
         while True:
 
             letter = str(getch()).upper()
@@ -275,14 +300,21 @@ def main():
                 elif word.plain in bee.answers:
                     valid_guesses.append(word.plain)
                     record_guess(word.plain, True, game_id, conn)
+
                     guesses.append(word + "\n")
-                    guesses_panel.title = f"{len(valid_guesses)} guess{'' if len(valid_guesses) == 1 else 'es'}"
+                    guesses_panel.title = f"{len(valid_guesses)} word{'' if len(valid_guesses) == 1 else 's'}"
+
                     score.truncate(0)
                     score.append(str(calculate_score(valid_guesses)))
-                    message.append(
-                        random.choice(["Nice!", "Awesome!", "Good!"]),
-                        style="chartreuse1",
-                    )
+                    if word.plain in bee.pangrams:
+                        message.append(
+                            Text.from_markup("Pangram! :tada:", style="blink magenta1")
+                        )
+                    else:
+                        message.append(
+                            random.choice(["Nice!", "Awesome!", "Good!"]),
+                            style="chartreuse1",
+                        )
                 else:
                     record_guess(word.plain, False, game_id, conn)
                     word.stylize("red")
@@ -313,9 +345,11 @@ def main():
                 else:
                     word.append(letter)
 
-                hive.stylize("not underline", 0)
-                for i, l in enumerate(hive.plain):
-                    if l == letter:
+            # Repaint any styling on the hive, including deletions
+            hive.stylize("not underline")
+            for i, l in enumerate(hive.plain):
+                for w in word.plain:
+                    if l == w:
                         hive.stylize("underline", i, i + 1)
 
             live.update(game_panel, refresh=True)
