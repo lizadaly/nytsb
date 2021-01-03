@@ -249,7 +249,6 @@ def main():
 
     status_row.add_column(justify="right")
     status_row.add_row(Padding(message, (2, 0)), score_panel)
-    rank_name, rank_value = bee.rank(int(score.plain))
 
     rank_table = Table(
         box=box.SIMPLE,
@@ -258,15 +257,21 @@ def main():
         pad_edge=False,
         expand=True,
     )
-    for rank in RANKS:
-        my_rank = rank_name == rank[0]
-        style = Style(dim=not my_rank)
-        rank_table.add_column(
-            rank[0],
-            min_width=min(2, int(rank[1] / 100 * console.width)),
-            justify="right",
-            header_style=style,
-        )
+
+    def init_rank_table():
+        rank_table.columns = []
+        rank_name, _ = bee.rank(int(score.plain))
+        for rank in RANKS:
+            my_rank = rank_name == rank[0]
+            style = Style(dim=not my_rank)
+            rank_table.add_column(
+                rank[0],
+                min_width=min(2, int(rank[1] / 100 * console.width)),
+                justify="right",
+                header_style=style,
+            )
+
+    init_rank_table()
 
     game_panel = RenderGroup(
         status_row,
@@ -306,6 +311,9 @@ def main():
 
                     score.truncate(0)
                     score.append(str(calculate_score(valid_guesses)))
+
+                    init_rank_table()
+
                     if word.plain in bee.pangrams:
                         message.append(
                             Text.from_markup("Pangram! :tada:", style="blink magenta1")
