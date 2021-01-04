@@ -89,7 +89,7 @@ class Screen:
         self.guesses_panel = Panel(
             self.guesses_columns,
             title="",
-            width=(console.width - 27),
+            width=(console.width - 26),
             style=theme["hive"],
         )
 
@@ -98,11 +98,16 @@ class Screen:
         self.score = Text(justify="right", style=theme["text"])
         score_panel = Panel(self.score, title="Score", style=theme["score"])
 
-        status_row = Table.grid(expand=True)
-        status_row.add_column(min_width=(console.width - 20))
+        status_row = Table.grid(expand=True, padding=0, collapse_padding=True)
+        status_row.add_column(justify="left", width=12)
+        status_row.add_column(width=console.width - 24)
 
-        status_row.add_column(justify="right")
-        status_row.add_row(Padding(self.message, (2, 0)), score_panel)
+        status_row.add_column(justify="right", width=12)
+        status_row.add_row(
+            Text(""),
+            Padding(self.message, (2, 0)),
+            score_panel,
+        )
 
         self.rank_table = Table(
             box=box.SIMPLE,
