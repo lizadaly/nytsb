@@ -9,18 +9,36 @@ from rich.panel import Panel
 from rich.columns import Columns
 from rich.padding import Padding
 from rich.table import Table
+from rich.theme import Theme
 
-console = Console(highlight=False)
 
 help_text: Final = (
     "\n"
     "Create words using letters from the hive. Words must contain at least 4 letters and must "
-    "include the central letter (shown here in [chartreuse1]green[/chartreuse1]). Letters can be used more than once. "
+    "include the central letter (shown here in [chartreuse1]green[/chartreuse1]). Letters can be "
+    "used more than once. "
     "\n\n"
     "At any time, you can press space to shuffle your hive, "
-    "/ to view this help text, or ESC to quit. "
-    "\n"
+    "/ to view this help text, or ESC to quit. The game will remember where you left off today."
+    "\n\n"
+    "Press space to continue."
 )
+
+theme = {  # FIXME can Rich Themes work here? They seem to only work in Console calls
+    "pangram": "blink magenta1",
+    "center": "bold chartreuse1",
+    "success": "chartreuse1",
+    "fail": "red3",
+    "bee": "yellow",
+    "rank": "sky_blue3",
+    "score": "sky_blue3",
+    "invalid": "grey50",
+    "hive": "grey93",
+    "text": "bright_white",
+}
+
+
+console = Console(highlight=False, theme=Theme(theme))
 
 
 class Screen:
@@ -59,16 +77,26 @@ class Screen:
         self.hive = Text(justify="center")
         self.word = Text(justify="center")
 
-        hive_panel = Panel(RenderGroup(Panel(self.hive), Panel(self.word)), width=25)
+        hive_panel = Panel(
+            RenderGroup(Panel(self.hive), Panel(self.word)),
+            width=25,
+            # style=theme["hive"],
+        )
 
         # Game status
         self.guesses = Text()
-        self.guesses_panel = Panel(self.guesses, title="", width=(console.width - 27))
+        self.guesses_columns = Columns([self.guesses], equal=True, padding=(0, 3))
+        self.guesses_panel = Panel(
+            self.guesses_columns,
+            title="",
+            width=(console.width - 27),
+            style=theme["hive"],
+        )
 
         self.message = Text(justify="center", style="italic")
 
-        self.score = Text(justify="right")
-        score_panel = Panel(self.score, title="Score")
+        self.score = Text(justify="right", style=theme["text"])
+        score_panel = Panel(self.score, title="Score", style=theme["score"])
 
         status_row = Table.grid(expand=True)
         status_row.add_column(min_width=(console.width - 20))
@@ -82,6 +110,7 @@ class Screen:
             collapse_padding=True,
             pad_edge=False,
             expand=True,
+            border_style=theme["rank"],
         )
         self.game_panel = RenderGroup(
             status_row,
@@ -101,7 +130,7 @@ class Screen:
         rank_name, _ = self._bee.rank(score)
         for rank in RANKS:
             my_rank = rank_name == rank[0]
-            style = Style(dim=not my_rank)
+            style = Style(dim=not my_rank, color=theme["rank"])
             self.rank_table.add_column(
                 rank[0],
                 min_width=min(2, int(rank[1] / 100 * console.width)),
@@ -110,9 +139,24 @@ class Screen:
             )
 
     def update_guesses(self, guess_list: List[str]):
-        self.guesses.truncate(0)
-        for g in guess_list:
-            self.guesses.append(g + "\n")
+        # Divide the number of guesses into available columns assuming a max word length of 15
+        max_cols = int(self.guesses_panel.width / 15)
+        col_height = 6
+        items_per_col = max(col_height, int(len(guess_list) / max_cols) + 1)
+        self.guesses_columns.renderables = []
+
+        start = 0
+        for _ in range(0, max_cols):
+            end = start + items_per_col
+            items = guess_list[start:end]
+            text = Text()
+            for i, item in enumerate(items):
+                text.append(item)
+                if i < len(items) - 1:
+                    text.append("\n")
+            self.guesses_columns.add_renderable(text)
+            start += items_per_col
+
         self.guesses_panel.title = (
             f"{len(guess_list)} word{'' if len(guess_list) == 1 else 's'}"
         )
@@ -124,24 +168,24 @@ class Screen:
         for l in self._bee.valid:
             letter = Text()
             if l == self._bee.center.upper():
-                letter.append(l.upper(), style="bold chartreuse1")
+                letter.append(l + " ", style=theme["center"])
             else:
-                letter.append(l.upper())
+                letter.append(l + " ", style=theme["text"])
             self.hive.append(letter)
 
     def on_correct_guess(self, guess: str):
         if guess in self._bee.pangrams:
             self.message.append(
-                Text.from_markup("Pangram! :tada:", style="blink magenta1")
+                Text.from_markup("Pangram! :tada:", style=theme["pangram"])
             )
         else:
             self.message.append(
                 random.choice(["Nice!", "Awesome!", "Good!"]),
-                style="chartreuse1",
+                style=theme["success"],
             )
 
     def on_incorrect_guess(self, guess: str):
-        self.word.stylize("red")
+        self.word.stylize(theme["fail"])
         if len(guess) < 4:
             err = "Too short"
         elif any(l not in self._bee.valid for l in guess):
@@ -150,7 +194,7 @@ class Screen:
             err = "Missing center letter"
         else:
             err = "Not in word list"
-        self.message.append(err, style="red")
+        self.message.append(err, style=theme["fail"])
 
     def on_hive_update(self, guess: str):
         self.hive.stylize("not underline")
@@ -165,7 +209,7 @@ def init_console(bee: SpellingBee, valid_guesses: List[str]) -> Screen:
     screen = Screen(bee)
 
     console.print(
-        f"\n:bee: [bold yellow]Spelling Bee[default] for {bee.date.strftime('%B %-d, %Y')} :bee:",
+        f"\n:bee: [bee]Spelling Bee[/bee] for {bee.date.strftime('%B %-d, %Y')} :bee:",
         justify="center",
     )
 

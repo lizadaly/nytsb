@@ -19,7 +19,7 @@ from rich.live import Live
 import db
 import ui
 
-RANKS = (
+RANKS = (  # by percentage of total points
     ("Beginner", 0),
     ("Good Start", 2),
     ("Moving Up", 5),
@@ -97,6 +97,10 @@ def main():
         # Paint the initial game board
         live.update(screen.game_panel, refresh=True)
 
+        # If this is a new game, show the help first
+        if not valid_guesses:
+            live.update(screen.help_panel, refresh=True)
+
         while True:
 
             letter = str(getch()).upper()
@@ -135,26 +139,43 @@ def main():
                     live.update(screen.game_panel, refresh=True)
                     time.sleep(0.6)
 
+                screen.hive.stylize("not underline")
+                letter = ""
+                guess = ""
                 screen.word.truncate(0)
 
-            # Backspace
+            # Deleting previous character
             elif ord(letter) in (curses.ascii.DEL, curses.ascii.BS):
                 screen.word.right_crop(1)
 
+            # ESC to quit
+            elif ord(letter) == curses.ascii.ESC:
+                exit()
+
+            # Ignore unregistered characters
             elif not curses.ascii.isalpha(letter):
                 continue
 
             else:
                 if letter not in bee.valid:
-                    screen.word.append(letter, style="grey50")
+                    screen.word.append(letter, style=ui.theme["invalid"])
                 else:
                     screen.word.append(letter)
 
             # Repaint any styling on the hive, including deletions
-            screen.on_hive_update(guess)
+            screen.on_hive_update(guess + letter.strip())
 
             live.update(screen.game_panel, refresh=True)
 
 
 if __name__ == "__main__":
+    import argparse
+    from pathlib import Path
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--reset", action="store_true", help="Reset the game database")
+    args = parser.parse_args()
+    if args.reset:
+        Path(db.DB_NAME).unlink()
+
     main()

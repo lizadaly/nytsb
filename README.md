@@ -1,5 +1,16 @@
-# NYTSB
+# NYTSBOMG
 
-This script downloads and loads the daily New York Times Spelling Bee puzzle to be played in the terminal. It was designed to rely only on the Python standard library, so should not require much in the way of installation. Just download and run `./nytsb.py` to see how it works.
+This is a ridiculous fork of https://github.com/thisisparker/nytsb to add full rich CLI support and a local database backend to
+persist a day's game across multiple sessions.
 
-Requires Python 3.
+# Installation
+
+```
+pipenv install
+pipenv run ./nytsb.py
+```
+
+# Demo
+
+<img src="demo.gif" alt="demo of nytsb.py" />
+

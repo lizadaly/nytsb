@@ -2,12 +2,14 @@ import sqlite3
 import datetime
 from typing import List, Optional, Tuple
 
+DB_NAME = "nytsb.db"
+
 
 def init_db() -> sqlite3.Connection:
     """Create the DB table if it does not exist."""
     # TODO Should this schema support selecting games from the past? Currently just a persistence
     # mechanism for today's game
-    conn = sqlite3.connect("nytsb.db", isolation_level=None)
+    conn = sqlite3.connect(DB_NAME, isolation_level=None)
     conn.execute(
         """
     CREATE TABLE IF NOT EXISTS game
