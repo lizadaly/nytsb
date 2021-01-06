@@ -1,5 +1,5 @@
 import random
-from typing import Final, List
+from typing import Dict, Final, List
 from nytsb import SpellingBee, RANKS, calculate_score
 from rich.console import Console, RenderGroup
 from rich import box
@@ -10,7 +10,7 @@ from rich.columns import Columns
 from rich.padding import Padding
 from rich.table import Table
 from rich.theme import Theme
-
+from rich.bar import Bar
 
 help_text: Final = (
     "\n"
@@ -19,7 +19,8 @@ help_text: Final = (
     "used more than once. "
     "\n\n"
     "At any time, you can press space to shuffle your hive, "
-    "/ to view this help text, or ESC to quit. The game will remember where you left off today."
+    "/ to view this help text, . to view hints for this game, or ESC to quit. The game will remember "
+    "where you left off today."
     "\n\n"
     "Press space to continue."
 )
@@ -80,7 +81,6 @@ class Screen:
         hive_panel = Panel(
             RenderGroup(Panel(self.hive), Panel(self.word)),
             width=25,
-            # style=theme["hive"],
         )
 
         # Game status
@@ -123,7 +123,77 @@ class Screen:
             self.rank_table,
         )
 
-        self.help_panel = Panel(Text.from_markup(help_text))
+        self.help_panel = Panel(Text.from_markup(help_text), box=box.HEAVY_EDGE)
+
+    def hint_panel(self, valid_guesses: List[str], invalid_guesses: List[str]):
+        """Display useful hints like max total points and number of pangrams"""
+        score = calculate_score(valid_guesses)
+        pangrams = [p for p in valid_guesses if p in self._bee.pangrams]
+        if len(pangrams) == len(self._bee.pangrams):
+            pangram_message = "and that's all of them! :tada:"
+        else:
+            pangram_message = (
+                f"you need {len(self._bee.pangrams) - len(pangrams)} more!"
+            )
+        self._bee.answers.sort(key=lambda x: len(x))
+
+        lengths: Dict[int, int] = {}
+        for word in self._bee.answers:
+            if len(word) not in lengths:
+                lengths[len(word)] = 0
+            lengths[len(word)] += 1
+
+        graph: List[Bar] = []
+
+        longest = max(l for l in lengths.values())
+        for length, count in lengths.items():
+            graph.append(
+                Bar(
+                    size=longest,
+                    begin=0,
+                    end=count,
+                    width=int(console.width / 2),
+                    color=theme["rank"],
+                )
+            )
+        length_table = Table(
+            style=theme["rank"],
+            row_styles=[theme["rank"]],
+            header_style=theme["text"],
+        )
+        length_table.add_column("Length")
+        length_table.add_column("Frequency")
+        length_table.add_column("Count")
+        for length, count in lengths.items():
+            length_table.add_row(
+                str(length),
+                Bar(
+                    size=longest,
+                    begin=0,
+                    end=count,
+                    width=int(console.width / 2),
+                    color="sky_blue3",
+                ),
+                str(count),
+            )
+
+        return Panel(
+            Padding(
+                RenderGroup(
+                    Text.from_markup(
+                        f"Your current score is [green]{self.score} of {self._bee.max_score} total points "
+                        f"({int(score / self._bee.max_score * 100)}%)[/green] for a rank of {self._bee.rank(score)[0]}."
+                        "\n\n"
+                        f"You have found {len(pangrams)} [bold]pangram{'' if len(pangrams) == 1  else 's'}[/bold] — "
+                        f"{pangram_message}"
+                        "\n"
+                    ),
+                    length_table,
+                ),
+                pad=(2, 2),
+            ),
+            box=box.HEAVY_EDGE,
+        )
 
     def set_score(self, valid_guesses: List[str]):
         self.score.truncate(0)

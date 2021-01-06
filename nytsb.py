@@ -116,6 +116,12 @@ def main():
                 live.update(screen.help_panel, refresh=True)
                 continue
 
+            elif letter == ".":
+                live.update(
+                    screen.hint_panel(valid_guesses, invalid_guesses), refresh=True
+                )
+                continue
+
             # Enter to submit
             elif ord(letter) in (curses.ascii.LF, curses.ascii.CR):
                 if guess in valid_guesses:
